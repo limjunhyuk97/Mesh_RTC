@@ -10,8 +10,8 @@ let myId = "";
 // 유저의 브라우저로부터 Media Device들을 받아오는 과정
 navigator.mediaDevices
 	.getUserMedia({
-		audio,
-		video: { facingMode: "user" },
+		audio: false,
+		video: true,
 	})
 	.then((stream) => {
 		/*
