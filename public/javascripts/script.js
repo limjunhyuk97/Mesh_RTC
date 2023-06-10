@@ -1,62 +1,66 @@
-const socket = io('/');
-const videoGrid = document.getElementById('video-grid');
+const socket = io("/");
+const videoGrid = document.getElementById("video-grid");
 const myPeer = new Peer();
-const myVideo = document.createElement('video');
+const myVideo = document.createElement("video");
 myVideo.muted = true;
-const peers = {};
+const connections = {};
+
+let myId = "";
 
 // 유저의 브라우저로부터 Media Device들을 받아오는 과정
 navigator.mediaDevices
-  .getUserMedia({
-    video: true,
-    audio: true,
-  })
-  .then((stream) => {
-    /*
+	.getUserMedia({
+		video: true,
+		audio: true,
+	})
+	.then((stream) => {
+		/*
     Media Device를 받아오는데 성공하면 stream을 넘겨받을 수 있다.
     addVideoStream은 받아온 스트림을 나의 브라우저에 추가 시킨다.
     */
-    addVideoStream(myVideo, stream);
+		addVideoStream(myVideo, stream);
 
-    /*
+		/*
     그 후 누군가 나에게 요청을 보내면 받기 위해 event를 on 해준다.
     call.answer는 나에게 응답을 준 다른 peer의 요청에 수락하는 코드이다.
     이 과정에서 나의 stream을 다른 동료에게 보내준다.
     answer가 발생하면 'stream'이라는 이벤트를 통해 다른 유저의 stream을 받아올 수 있다.
     call.on('stream')에서는 다른 유저의 stream을 나의 브라우저에 추가 시키는 콜백 함수가 실행된다.
     */
-    myPeer.on('call', (call) => {
-      call.answer(stream);
-      const video = document.createElement('video');
-      call.on('stream', (userVideoStream) => {
-        addVideoStream(video, userVideoStream);
-      });
-    });
+		myPeer.on("call", (call) => {
+			call.answer(stream);
+			const video = document.createElement("video");
+			video.setAttribute("id", call.peer);
+			connections[call.peer] = call;
+			call.on("stream", (userVideoStream) => {
+				addVideoStream(video, userVideoStream);
+			});
+		});
 
-    /*
+		/*
     user-connected 이벤트가 발생하면 새롭게 접속한 유저에게 call 요청을 보낸다.
     call 요청은 각각의 peer가 가지고 있는 userId를 통해 할 수 있는데 이 userId를 서버로부터 받아온 후 call을 보내는 것이다.
     */
-    socket.on('user-connected', (userId) => {
-      connectToNewUser(userId, stream);
-    });
-});
+		socket.on("user-connected", (userId) => {
+			connectToNewUser(userId, stream);
+		});
 
-/*
-유저가 나간 경우에 socket.io에서는 자동으로 'disconnect' 이벤트를 발생시킨다.
-이 경우 다른 peer의 stream을 close 시키는 코드이다.
-*/
-socket.on('user-disconnected', (userId) => {
-  if (peers[userId]) peers[userId].close();
-});
+		socket.on("user-disconnected", (userId) => {
+			console.log(userId);
+			connections[userId]?.close();
+			const target = document.getElementById(userId);
+			target.remove();
+		});
+	});
 
 /*
 peer 서버와 정상적으로 통신이 된 경우 'open' 이벤트가 발생된다.
 open 이벤트가 발생하면 url의 uuid를 통해 유저를 room에 join 시킨다.
 간단하게 설명하면 유저가 들어오면 room에 join 시킨다고 보면 된다.
 */
-myPeer.on('open', (id) => {
-  socket.emit('join-room', ROOM_ID, id);
+myPeer.on("open", (id) => {
+	socket.emit("join-room", ROOM_ID, id);
+	myId = id;
 });
 
 /*
@@ -68,22 +72,25 @@ myPeer.on('open', (id) => {
 상대가 나가서 상대의 stream에 대해 'close' 이벤트가 발생하면 상대의 video를 내 화면에서 remove 시킨다.
 */
 function connectToNewUser(userId, stream) {
-  const call = myPeer.call(userId, stream);
-  const video = document.createElement('video');
-  call.on('stream', (userVideoStream) => {
-    addVideoStream(video, userVideoStream);
-  });
-  call.on('close', () => {
-    video.remove();
-  });
-
-  peers[userId] = call;
+	const call = myPeer.call(userId, stream);
+	const video = document.createElement("video");
+	video.setAttribute("id", userId);
+	call.on("stream", (userVideoStream) => {
+		connections[userId] = call;
+		addVideoStream(video, userVideoStream);
+	});
 }
 
 function addVideoStream(video, stream) {
-  video.srcObject = stream;
-  video.addEventListener('loadedmetadata', () => {
-    video.play();
-  });
-  videoGrid.append(video);
+	video.srcObject = stream;
+	video.addEventListener("loadedmetadata", () => {
+		video.play();
+	});
+	videoGrid.appendChild(video);
 }
+
+window.addEventListener("beforeunload", (event) => {
+	event.preventDefault();
+	myPeer.destroy();
+	socket.emit("leave-room", ROOM_ID, myId);
+});
