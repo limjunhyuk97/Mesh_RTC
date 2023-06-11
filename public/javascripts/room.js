@@ -15,16 +15,6 @@ navigator.mediaDevices
 	})
 	.then((stream) => {
 		/*
-		peer 서버와 정상적으로 통신이 된 경우 'open' 이벤트가 발생된다.
-		open 이벤트가 발생하면 url의 uuid를 통해 유저를 room에 join 시킨다.
-		간단하게 설명하면 유저가 들어오면 room에 join 시킨다고 보면 된다.
-		*/
-		myPeer.on("open", (id) => {
-			socket.emit("join-room", ROOM_ID, id);
-			myId = id;
-		});
-
-		/*
     Media Device를 받아오는데 성공하면 stream을 넘겨받을 수 있다.
     addVideoStream은 받아온 스트림을 나의 브라우저에 추가 시킨다.
     */
@@ -61,6 +51,16 @@ navigator.mediaDevices
 			target.remove();
 		});
 	});
+
+/*
+peer 서버와 정상적으로 통신이 된 경우 'open' 이벤트가 발생된다.
+open 이벤트가 발생하면 url의 uuid를 통해 유저를 room에 join 시킨다.
+간단하게 설명하면 유저가 들어오면 room에 join 시킨다고 보면 된다.
+*/
+myPeer.on("open", (id) => {
+	socket.emit("join-room", ROOM_ID, id);
+	myId = id;
+});
 
 /*
 위에서 간략하게 설명했는데 다시 한 번 설명하자면 다음과 같다.
